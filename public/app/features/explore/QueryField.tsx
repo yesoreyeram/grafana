@@ -313,32 +313,35 @@ export class QueryField extends React.PureComponent<QueryFieldProps, QueryFieldS
 
   handleEnterAndTabKey = (event: KeyboardEvent, change: Change) => {
     const { typeaheadIndex, suggestions } = this.state;
-    if (this.menuEl) {
-      // Dont blur input
-      event.preventDefault();
-      if (!suggestions || suggestions.length === 0) {
-        return undefined;
-      }
-
-      const suggestion = getSuggestionByIndex(suggestions, typeaheadIndex);
-      const nextChange = this.applyTypeahead(change, suggestion);
-
-      const insertTextOperation = nextChange.operations.find((operation: any) => operation.type === 'insert_text');
-      if (insertTextOperation) {
-        const suggestionText = insertTextOperation.text;
-        this.placeholdersBuffer.setNextPlaceholderValue(suggestionText);
-        if (this.placeholdersBuffer.hasPlaceholders()) {
-          nextChange.move(this.placeholdersBuffer.getNextMoveOffset()).focus();
+    if (!event.shiftKey) {
+      if (this.menuEl) {
+        // Dont blur input
+        event.preventDefault();
+        if (!suggestions || suggestions.length === 0) {
+          return undefined;
         }
+
+        const suggestion = getSuggestionByIndex(suggestions, typeaheadIndex);
+        const nextChange = this.applyTypeahead(change, suggestion);
+
+        const insertTextOperation = nextChange.operations.find((operation: any) => operation.type === 'insert_text');
+        if (insertTextOperation) {
+          const suggestionText = insertTextOperation.text;
+          this.placeholdersBuffer.setNextPlaceholderValue(suggestionText);
+          if (this.placeholdersBuffer.hasPlaceholders()) {
+            nextChange.move(this.placeholdersBuffer.getNextMoveOffset()).focus();
+          }
+        }
+
+        return true;
+      } else {
+        // Run queries if Shift is not pressed, otherwise pass through
+        this.executeOnChangeAndRunQueries();
+
+        return true;
       }
-
-      return true;
-    } else if (!event.shiftKey) {
-      // Run queries if Shift is not pressed, otherwise pass through
-      this.executeOnChangeAndRunQueries();
-
-      return true;
     }
+
     return undefined;
   };
 
