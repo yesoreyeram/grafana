@@ -313,36 +313,32 @@ export class QueryField extends React.PureComponent<QueryFieldProps, QueryFieldS
 
   handleEnterAndTabKey = (event: KeyboardEvent, change: Change) => {
     const { typeaheadIndex, suggestions } = this.state;
-    if (!event.shiftKey) {
-      if (this.menuEl) {
-        // Dont blur input
-        event.preventDefault();
-        if (!suggestions || suggestions.length === 0) {
-          return undefined;
-        }
 
-        const suggestion = getSuggestionByIndex(suggestions, typeaheadIndex);
-        const nextChange = this.applyTypeahead(change, suggestion);
+    // Don't blur input
+    event.preventDefault();
 
-        const insertTextOperation = nextChange.operations.find((operation: any) => operation.type === 'insert_text');
-        if (insertTextOperation) {
-          const suggestionText = insertTextOperation.text;
-          this.placeholdersBuffer.setNextPlaceholderValue(suggestionText);
-          if (this.placeholdersBuffer.hasPlaceholders()) {
-            nextChange.move(this.placeholdersBuffer.getNextMoveOffset()).focus();
-          }
-        }
+    if (event.shiftKey || !suggestions || suggestions.length === 0) {
+      return undefined;
+    } else if (!this.menuEl) {
+      // Run queries if Shift is not pressed, otherwise pass through
+      this.executeOnChangeAndRunQueries();
 
-        return true;
-      } else {
-        // Run queries if Shift is not pressed, otherwise pass through
-        this.executeOnChangeAndRunQueries();
+      return true;
+    }
 
-        return true;
+    const suggestion = getSuggestionByIndex(suggestions, typeaheadIndex);
+    const nextChange = this.applyTypeahead(change, suggestion);
+
+    const insertTextOperation = nextChange.operations.find((operation: any) => operation.type === 'insert_text');
+    if (insertTextOperation) {
+      const suggestionText = insertTextOperation.text;
+      this.placeholdersBuffer.setNextPlaceholderValue(suggestionText);
+      if (this.placeholdersBuffer.hasPlaceholders()) {
+        nextChange.move(this.placeholdersBuffer.getNextMoveOffset()).focus();
       }
     }
 
-    return undefined;
+    return true;
   };
 
   onKeyDown = (event: KeyboardEvent, change: Change) => {
