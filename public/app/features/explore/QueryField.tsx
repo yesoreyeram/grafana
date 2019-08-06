@@ -1,11 +1,8 @@
 import _ from 'lodash';
 import React, { Context } from 'react';
 import ReactDOM from 'react-dom';
-// @ts-ignore
-import { Change, Value } from 'slate';
-// @ts-ignore
-import { Editor } from 'slate-react';
-// @ts-ignore
+import { Value, InsertTextOperation, Editor as SlateEditor } from 'slate';
+import { Editor, Plugin } from 'slate-react';
 import Plain from 'slate-plain-serializer';
 import classnames from 'classnames';
 
@@ -15,7 +12,7 @@ import ClearPlugin from './slate-plugins/clear';
 import NewlinePlugin from './slate-plugins/newline';
 
 import { TypeaheadWithTheme } from './Typeahead';
-import { makeFragment, makeValue } from '@grafana/ui';
+import { makeFragment, makeValue, SCHEMA } from '@grafana/ui';
 import PlaceholdersBuffer from './PlaceholdersBuffer';
 
 export const TYPEAHEAD_DEBOUNCE = 100;
@@ -33,7 +30,7 @@ function hasSuggestions(suggestions: CompletionItemGroup[]): boolean {
 }
 
 export interface QueryFieldProps {
-  additionalPlugins?: any[];
+  additionalPlugins?: Plugin[];
   cleanText?: (text: string) => string;
   disabled?: boolean;
   initialQuery: string | null;
@@ -53,7 +50,7 @@ export interface QueryFieldState {
   typeaheadIndex: number;
   typeaheadPrefix: string;
   typeaheadText: string;
-  value: any;
+  value: Value;
   lastExecutedValue: Value;
 }
 
@@ -75,10 +72,11 @@ export interface TypeaheadInput {
 export class QueryField extends React.PureComponent<QueryFieldProps, QueryFieldState> {
   menuEl: HTMLElement | null;
   placeholdersBuffer: PlaceholdersBuffer;
-  plugins: any[];
-  resetTimer: any;
+  plugins: Plugin[];
+  resetTimer: NodeJS.Timer;
   mounted: boolean;
-  updateHighlightsTimer: any;
+  updateHighlightsTimer: Function;
+  editor: Editor;
 
   constructor(props: QueryFieldProps, context: Context<any>) {
     super(props, context);
@@ -132,18 +130,15 @@ export class QueryField extends React.PureComponent<QueryFieldProps, QueryFieldS
   componentWillReceiveProps(nextProps: QueryFieldProps) {
     if (nextProps.syntaxLoaded && !this.props.syntaxLoaded) {
       // Need a bogus edit to re-render the editor after syntax has fully loaded
-      const change = this.state.value
-        .change()
-        .insertText(' ')
-        .deleteBackward();
+      const editor = this.editor.insertText(' ').deleteBackward(1);
       if (this.placeholdersBuffer.hasPlaceholders()) {
-        change.move(this.placeholdersBuffer.getNextMoveOffset()).focus();
+        editor.moveForward(this.placeholdersBuffer.getNextMoveOffset()).focus();
       }
-      this.onChange(change, true);
+      this.onChange(editor, true);
     }
   }
 
-  onChange = ({ value }: Change, invokeParentOnValueChanged?: boolean) => {
+  onChange = ({ value }: { value: Value }, invokeParentOnValueChanged?: boolean) => {
     const documentChanged = value.document !== this.state.value.document;
     const prevValue = this.state.value;
 
@@ -196,9 +191,9 @@ export class QueryField extends React.PureComponent<QueryFieldProps, QueryFieldS
     const { value } = this.state;
 
     if (onTypeahead && selection.anchorNode) {
-      const wrapperNode = selection.anchorNode.parentElement;
+      const wrapperNode = selection.anchorNode.parentElement.parentElement || selection.anchorNode.parentElement;
       const editorNode = wrapperNode.closest('.slate-query-field');
-      if (!editorNode || this.state.value.isBlurred) {
+      if (!editorNode || this.state.value.selection.isBlurred) {
         // Not inside this editor
         return;
       }
@@ -272,7 +267,7 @@ export class QueryField extends React.PureComponent<QueryFieldProps, QueryFieldS
     }
   }, TYPEAHEAD_DEBOUNCE);
 
-  applyTypeahead(change: Change, suggestion: CompletionItem): Change {
+  applyTypeahead(editor: Editor, suggestion: CompletionItem): SlateEditor {
     const { cleanText, onWillApplySuggestion, syntax } = this.props;
     const { typeaheadPrefix, typeaheadText } = this.state;
     let suggestionText = suggestion.insertText || suggestion.label;
@@ -296,42 +291,45 @@ export class QueryField extends React.PureComponent<QueryFieldProps, QueryFieldS
     // If new-lines, apply suggestion as block
     if (suggestionText.match(/\n/)) {
       const fragment = makeFragment(suggestionText, syntax);
-      return change
+      return editor
         .deleteBackward(backward)
         .deleteForward(forward)
         .insertFragment(fragment)
         .focus();
     }
 
-    return change
+    return editor
       .deleteBackward(backward)
       .deleteForward(forward)
       .insertText(suggestionText)
-      .move(move)
+      .moveForward(move)
       .focus();
   }
 
-  handleEnterAndTabKey = (event: KeyboardEvent, change: Change) => {
+  handleEnterAndTabKey = (event: KeyboardEvent, editor: SlateEditor, next: Function) => {
     const { typeaheadIndex, suggestions } = this.state;
     if (this.menuEl) {
       // Dont blur input
       event.preventDefault();
       if (!suggestions || suggestions.length === 0) {
-        return undefined;
+        return next();
       }
 
       const suggestion = getSuggestionByIndex(suggestions, typeaheadIndex);
-      const nextChange = this.applyTypeahead(change, suggestion);
+      this.applyTypeahead(this.editor, suggestion);
 
-      const insertTextOperation = nextChange.operations.find((operation: any) => operation.type === 'insert_text');
+      const insertTextOperation: InsertTextOperation = this.editor.operations.find(
+        operation => operation.type === 'insert_text'
+      ) as InsertTextOperation;
       if (insertTextOperation) {
         const suggestionText = insertTextOperation.text;
         this.placeholdersBuffer.setNextPlaceholderValue(suggestionText);
         if (this.placeholdersBuffer.hasPlaceholders()) {
-          nextChange.move(this.placeholdersBuffer.getNextMoveOffset()).focus();
+          this.editor.moveForward(this.placeholdersBuffer.getNextMoveOffset()).focus();
         }
       }
 
+      this.onChange({ value: this.editor.value });
       return true;
     } else if (!event.shiftKey) {
       // Run queries if Shift is not pressed, otherwise pass through
@@ -339,17 +337,18 @@ export class QueryField extends React.PureComponent<QueryFieldProps, QueryFieldS
 
       return true;
     }
-    return undefined;
+    return next();
   };
 
-  onKeyDown = (event: KeyboardEvent, change: Change) => {
+  onKeyDown = (event: KeyboardEvent, editor: SlateEditor, next: Function) => {
+    const keyboardEvent = event as KeyboardEvent;
     const { typeaheadIndex } = this.state;
 
-    switch (event.key) {
+    switch (keyboardEvent.key) {
       case 'Escape': {
         if (this.menuEl) {
-          event.preventDefault();
-          event.stopPropagation();
+          keyboardEvent.preventDefault();
+          keyboardEvent.stopPropagation();
           this.resetTypeahead();
           return true;
         }
@@ -357,8 +356,8 @@ export class QueryField extends React.PureComponent<QueryFieldProps, QueryFieldS
       }
 
       case ' ': {
-        if (event.ctrlKey) {
-          event.preventDefault();
+        if (keyboardEvent.ctrlKey) {
+          keyboardEvent.preventDefault();
           this.handleTypeahead();
           return true;
         }
@@ -366,14 +365,14 @@ export class QueryField extends React.PureComponent<QueryFieldProps, QueryFieldS
       }
       case 'Enter':
       case 'Tab': {
-        return this.handleEnterAndTabKey(event, change);
+        return this.handleEnterAndTabKey(keyboardEvent, editor, next);
         break;
       }
 
       case 'ArrowDown': {
         if (this.menuEl) {
           // Select next suggestion
-          event.preventDefault();
+          keyboardEvent.preventDefault();
           const itemsCount =
             this.state.suggestions.length > 0
               ? this.state.suggestions.reduce((totalCount, current) => totalCount + current.items.length, 0)
@@ -386,18 +385,19 @@ export class QueryField extends React.PureComponent<QueryFieldProps, QueryFieldS
       case 'ArrowUp': {
         if (this.menuEl) {
           // Select previous suggestion
-          event.preventDefault();
+          keyboardEvent.preventDefault();
           this.setState({ typeaheadIndex: Math.max(0, typeaheadIndex - 1) });
         }
         break;
       }
 
       default: {
-        // console.log('default key', event.key, event.which, event.charCode, event.locale, data.key);
+        //console.log('default key', keyboardEvent.key, keyboardEvent.which, keyboardEvent.charCode);
         break;
       }
     }
-    return undefined;
+
+    return next();
   };
 
   resetTypeahead = () => {
@@ -407,10 +407,10 @@ export class QueryField extends React.PureComponent<QueryFieldProps, QueryFieldS
     }
   };
 
-  handleBlur = (event: FocusEvent, change: Change) => {
+  handleBlur = (event: Event, editor: SlateEditor, next: Function) => {
     const { lastExecutedValue } = this.state;
     const previousValue = lastExecutedValue ? Plain.serialize(this.state.lastExecutedValue) : null;
-    const currentValue = Plain.serialize(change.value);
+    const currentValue = Plain.serialize(editor.value);
 
     // If we dont wait here, menu clicks wont work because the menu
     // will be gone.
@@ -421,11 +421,13 @@ export class QueryField extends React.PureComponent<QueryFieldProps, QueryFieldS
     if (previousValue !== currentValue) {
       this.executeOnChangeAndRunQueries();
     }
+
+    this.editor.blur();
   };
 
   onClickMenu = (item: CompletionItem) => {
     // Manually triggering change
-    const change = this.applyTypeahead(this.state.value.change(), item);
+    const change = this.applyTypeahead(this.editor, item);
     this.onChange(change, true);
   };
 
@@ -490,10 +492,12 @@ export class QueryField extends React.PureComponent<QueryFieldProps, QueryFieldS
     );
   };
 
-  handlePaste = (event: ClipboardEvent, change: Editor) => {
-    const pastedValue = event.clipboardData.getData('Text');
-    const newValue = change.value.change().insertText(pastedValue);
-    this.onChange(newValue);
+  handlePaste = (event: ClipboardEvent, editor: SlateEditor) => {
+    const clipboardEvent = event as ClipboardEvent;
+    const pastedValue = clipboardEvent.clipboardData.getData('Text');
+
+    editor.insertText(pastedValue);
+    this.onChange({ value: editor.value });
 
     return true;
   };
@@ -503,16 +507,20 @@ export class QueryField extends React.PureComponent<QueryFieldProps, QueryFieldS
     const wrapperClassName = classnames('slate-query-field__wrapper', {
       'slate-query-field__wrapper--disabled': disabled,
     });
+
     return (
       <div className={wrapperClassName}>
         <div className="slate-query-field">
           {this.renderMenu()}
+
           <Editor
+            ref={editor => (this.editor = editor)}
+            schema={SCHEMA}
             autoCorrect={false}
             readOnly={this.props.disabled}
             onBlur={this.handleBlur}
             onKeyDown={this.onKeyDown}
-            onChange={this.onChange}
+            onChange={(event: any) => this.onChange(event, false)}
             onPaste={this.handlePaste}
             placeholder={this.props.placeholder}
             plugins={this.plugins}

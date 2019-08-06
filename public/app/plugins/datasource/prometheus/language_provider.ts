@@ -11,6 +11,7 @@ import {
 import { parseSelector, processLabels, processHistogramLabels } from './language_utils';
 import PromqlSyntax, { FUNCTIONS, RATE_RANGES } from './promql';
 import { dateTime } from '@grafana/data';
+import { Range, Block } from 'slate';
 
 const DEFAULT_KEYS = ['job', 'instance'];
 const EMPTY_SELECTOR = '{}';
@@ -110,9 +111,9 @@ export default class PromQlLanguageProvider extends LanguageProvider {
   provideCompletionItems({ prefix, wrapperClasses, text, value }: TypeaheadInput, context?: any): TypeaheadOutput {
     // Local text properties
     const empty = value.document.text.length === 0;
-    const selectedLines = value.document.getTextsAtRangeAsArray(value.selection);
-    const currentLine = selectedLines.length === 1 ? selectedLines[0] : null;
-    const nextCharacter = currentLine ? currentLine.text[value.selection.anchorOffset] : null;
+    const selectedLines = value.document.getTextsAtRange(Range.create(value.selection));
+    const currentLine = selectedLines.size === 1 ? selectedLines.first().getText() : null;
+    const nextCharacter = currentLine ? currentLine[value.selection.anchor.offset] : null;
 
     // Syntax spans have 3 classes by default. More indicate a recognized token
     const tokenRecognized = wrapperClasses.length > 3;
@@ -225,12 +226,12 @@ export default class PromQlLanguageProvider extends LanguageProvider {
 
     // Stitch all query lines together to support multi-line queries
     let queryOffset;
-    const queryText = value.document.getBlocks().reduce((text: string, block: any) => {
+    const queryText = value.document.getBlocks().reduce((text: string, block: Block) => {
       const blockText = block.getText();
       if (value.anchorBlock.key === block.key) {
         // Newline characters are not accounted for but this is irrelevant
         // for the purpose of extracting the selector string
-        queryOffset = value.anchorOffset + text.length;
+        queryOffset = value.selection.anchor.offset + text.length;
       }
       text += blockText;
       return text;
@@ -260,7 +261,6 @@ export default class PromQlLanguageProvider extends LanguageProvider {
     }
 
     let selectorString = queryText.slice(openParensSelectorIndex + 1, closeParensSelectorIndex);
-
     // Range vector syntax not accounted for by subsequent parse so discard it if present
     selectorString = selectorString.replace(/\[[^\]]+\]$/, '');
 
@@ -281,7 +281,7 @@ export default class PromQlLanguageProvider extends LanguageProvider {
     let refresher: Promise<any> = null;
     const suggestions: CompletionItemGroup[] = [];
     const line = value.anchorBlock.getText();
-    const cursorOffset: number = value.anchorOffset;
+    const cursorOffset: number = value.selection.anchor.offset;
 
     // Get normalized selector
     let selector;

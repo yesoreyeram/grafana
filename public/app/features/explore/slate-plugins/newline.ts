@@ -1,4 +1,7 @@
-function getIndent(text: any) {
+import { Editor as SlateEditor } from 'slate';
+import { Plugin } from 'slate-react';
+
+function getIndent(text: string) {
   let offset = text.length - text.trimLeft().length;
   if (offset) {
     let indent = text[0];
@@ -10,26 +13,30 @@ function getIndent(text: any) {
   return '';
 }
 
-export default function NewlinePlugin() {
+export default function NewlinePlugin(): Plugin {
   return {
-    onKeyDown(event: any, change: { value?: any; splitBlock?: any }) {
-      const { value } = change;
-      if (!value.isCollapsed) {
-        return undefined;
+    onKeyDown(event: Event, editor: SlateEditor, next: Function) {
+      const keyboardEvent = event as KeyboardEvent;
+      const value = editor.value;
+
+      if (!value.selection.isCollapsed) {
+        return next();
       }
 
-      if (event.key === 'Enter' && event.shiftKey) {
-        event.preventDefault();
+      if (keyboardEvent.key === 'Enter' && keyboardEvent.shiftKey) {
+        keyboardEvent.preventDefault();
 
         const { startBlock } = value;
         const currentLineText = startBlock.text;
         const indent = getIndent(currentLineText);
 
-        return change
+        return editor
           .splitBlock()
           .insertText(indent)
           .focus();
       }
+
+      return next();
     },
   };
 }

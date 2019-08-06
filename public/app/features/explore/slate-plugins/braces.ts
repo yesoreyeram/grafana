@@ -1,59 +1,59 @@
-const BRACES: any = {
-  '[': ']',
-  '{': '}',
-  '(': ')',
-};
+import { Editor as SlateEditor } from 'slate';
+import { Plugin } from 'slate-react';
+
+const BRACES = new Map([['[', ']'], ['{', '}'], ['(', ')']]);
 
 const NON_SELECTOR_SPACE_REGEXP = / (?![^}]+})/;
 
-export default function BracesPlugin() {
+export default function BracesPlugin(): Plugin {
   return {
-    onKeyDown(event: any, change: { value?: any; insertText?: any; deleteBackward?: any }) {
-      const { value } = change;
-      if (!value.isCollapsed) {
-        return undefined;
+    onKeyDown(event: Event, editor: SlateEditor, next: Function) {
+      const keyboardEvent = event as KeyboardEvent;
+      const value = editor.value;
+      if (!value.selection.isCollapsed) {
+        return next();
       }
 
-      switch (event.key) {
+      switch (keyboardEvent.key) {
         case '{':
         case '[': {
-          event.preventDefault();
+          keyboardEvent.preventDefault();
           // Insert matching braces
-          change
-            .insertText(`${event.key}${BRACES[event.key]}`)
-            .move(-1)
+          editor
+            .insertText(`${keyboardEvent.key}${BRACES.get(keyboardEvent.key)}`)
+            .moveBackward(1)
             .focus();
           return true;
         }
 
         case '(': {
-          event.preventDefault();
+          keyboardEvent.preventDefault();
           const text = value.anchorText.text;
-          const offset = value.anchorOffset;
+          const offset = value.selection.anchor.offset;
           const delimiterIndex = text.slice(offset).search(NON_SELECTOR_SPACE_REGEXP);
           const length = delimiterIndex > -1 ? delimiterIndex + offset : text.length;
           const forward = length - offset;
           // Insert matching braces
-          change
-            .insertText(event.key)
-            .move(forward)
-            .insertText(BRACES[event.key])
-            .move(-1 - forward)
+          editor
+            .insertText(keyboardEvent.key)
+            .moveForward(forward)
+            .insertText(BRACES.get(keyboardEvent.key))
+            .moveBackward(forward + 1)
             .focus();
           return true;
         }
 
         case 'Backspace': {
           const text = value.anchorText.text;
-          const offset = value.anchorOffset;
+          const offset = value.selection.anchor.offset;
           const previousChar = text[offset - 1];
           const nextChar = text[offset];
-          if (BRACES[previousChar] && BRACES[previousChar] === nextChar) {
-            event.preventDefault();
+          if (BRACES.get(previousChar) && BRACES.get(previousChar) === nextChar) {
+            keyboardEvent.preventDefault();
             // Remove closing brace if directly following
-            change
-              .deleteBackward()
-              .deleteForward()
+            editor
+              .deleteBackward(1)
+              .deleteForward(1)
               .focus();
             return true;
           }
@@ -63,7 +63,7 @@ export default function BracesPlugin() {
           break;
         }
       }
-      return undefined;
+      return next();
     },
   };
 }

@@ -1,5 +1,5 @@
-// @ts-ignore
 import Plain from 'slate-plain-serializer';
+import { Editor as SlateEditor } from 'slate';
 
 import LanguageProvider, { LABEL_REFRESH_INTERVAL, rangeToParams } from './language_provider';
 import { AbsoluteTimeRange } from '@grafana/data';
@@ -56,10 +56,8 @@ describe('Language completion provider', () => {
     it('returns no suggestions within regexp', () => {
       const instance = new LanguageProvider(datasource);
       const value = Plain.deserialize('{} ()');
-      const range = value.selection.merge({
-        anchorOffset: 4,
-      });
-      const valueWithSelection = value.change().select(range).value;
+      const ed = new SlateEditor({ value });
+      const valueWithSelection = ed.moveForward(4).value;
       const history = [
         {
           query: { refId: '1', expr: '{app="foo"}' },
@@ -84,10 +82,8 @@ describe('Language completion provider', () => {
     it('returns default label suggestions on label context', () => {
       const instance = new LanguageProvider(datasource);
       const value = Plain.deserialize('{}');
-      const range = value.selection.merge({
-        anchorOffset: 1,
-      });
-      const valueWithSelection = value.change().select(range).value;
+      const ed = new SlateEditor({ value });
+      const valueWithSelection = ed.moveForward(1).value;
       const result = instance.provideCompletionItems(
         {
           text: '',

@@ -20,6 +20,7 @@ import {
 
 import { Emitter } from 'app/core/core';
 import TableModel from 'app/core/table_model';
+import { Value } from 'slate';
 
 export enum ExploreMode {
   Metrics = 'Metrics',
@@ -300,8 +301,7 @@ export interface TypeaheadInput {
   prefix: string;
   wrapperClasses: string[];
   labelKey?: string;
-  //Should be Value from slate
-  value?: any;
+  value?: Value;
 }
 
 export interface TypeaheadOutput {

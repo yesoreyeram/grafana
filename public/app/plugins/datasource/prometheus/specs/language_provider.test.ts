@@ -1,6 +1,5 @@
-// @ts-ignore
 import Plain from 'slate-plain-serializer';
-
+import { Editor as SlateEditor } from 'slate';
 import LanguageProvider from '../language_provider';
 
 describe('Language completion provider', () => {
@@ -131,10 +130,9 @@ describe('Language completion provider', () => {
     it('returns no suggestions at the beginning of a non-empty function', () => {
       const instance = new LanguageProvider(datasource, { metrics: ['foo', 'bar'] });
       const value = Plain.deserialize('sum(up)');
-      const range = value.selection.merge({
-        anchorOffset: 4,
-      });
-      const valueWithSelection = value.change().select(range).value;
+      const ed = new SlateEditor({ value });
+
+      const valueWithSelection = ed.moveForward(4).value;
       const result = instance.provideCompletionItems({
         text: '',
         prefix: '',
@@ -151,10 +149,8 @@ describe('Language completion provider', () => {
     it('returns default label suggestions on label context and no metric', () => {
       const instance = new LanguageProvider(datasource);
       const value = Plain.deserialize('{}');
-      const range = value.selection.merge({
-        anchorOffset: 1,
-      });
-      const valueWithSelection = value.change().select(range).value;
+      const ed = new SlateEditor({ value });
+      const valueWithSelection = ed.moveForward(1).value;
       const result = instance.provideCompletionItems({
         text: '',
         prefix: '',
@@ -168,10 +164,8 @@ describe('Language completion provider', () => {
     it('returns label suggestions on label context and metric', () => {
       const instance = new LanguageProvider(datasource, { labelKeys: { '{__name__="metric"}': ['bar'] } });
       const value = Plain.deserialize('metric{}');
-      const range = value.selection.merge({
-        anchorOffset: 7,
-      });
-      const valueWithSelection = value.change().select(range).value;
+      const ed = new SlateEditor({ value });
+      const valueWithSelection = ed.moveForward(7).value;
       const result = instance.provideCompletionItems({
         text: '',
         prefix: '',
@@ -187,10 +181,8 @@ describe('Language completion provider', () => {
         labelKeys: { '{job1="foo",job2!="foo",job3=~"foo"}': ['bar', 'job1', 'job2', 'job3'] },
       });
       const value = Plain.deserialize('{job1="foo",job2!="foo",job3=~"foo",}');
-      const range = value.selection.merge({
-        anchorOffset: 36,
-      });
-      const valueWithSelection = value.change().select(range).value;
+      const ed = new SlateEditor({ value });
+      const valueWithSelection = ed.moveForward(36).value;
       const result = instance.provideCompletionItems({
         text: '',
         prefix: '',
@@ -207,8 +199,8 @@ describe('Language completion provider', () => {
         labelValues: { '{}': { label: ['a', 'b', 'c'] } },
       });
       const value = Plain.deserialize('{label!=}');
-      const range = value.selection.merge({ anchorOffset: 8 });
-      const valueWithSelection = value.change().select(range).value;
+      const ed = new SlateEditor({ value });
+      const valueWithSelection = ed.moveForward(8).value;
       const result = instance.provideCompletionItems({
         text: '!=',
         prefix: '',
@@ -228,10 +220,8 @@ describe('Language completion provider', () => {
     it('returns a refresher on label context and unavailable metric', () => {
       const instance = new LanguageProvider(datasource, { labelKeys: { '{__name__="foo"}': ['bar'] } });
       const value = Plain.deserialize('metric{}');
-      const range = value.selection.merge({
-        anchorOffset: 7,
-      });
-      const valueWithSelection = value.change().select(range).value;
+      const ed = new SlateEditor({ value });
+      const valueWithSelection = ed.moveForward(7).value;
       const result = instance.provideCompletionItems({
         text: '',
         prefix: '',
@@ -249,10 +239,8 @@ describe('Language completion provider', () => {
         labelValues: { '{__name__="metric"}': { bar: ['baz'] } },
       });
       const value = Plain.deserialize('metric{bar=ba}');
-      const range = value.selection.merge({
-        anchorOffset: 13,
-      });
-      const valueWithSelection = value.change().select(range).value;
+      const ed = new SlateEditor({ value });
+      const valueWithSelection = ed.moveForward(13).value;
       const result = instance.provideCompletionItems({
         text: '=ba',
         prefix: 'ba',
@@ -267,10 +255,8 @@ describe('Language completion provider', () => {
     it('returns label suggestions on aggregation context and metric w/ selector', () => {
       const instance = new LanguageProvider(datasource, { labelKeys: { '{__name__="metric",foo="xx"}': ['bar'] } });
       const value = Plain.deserialize('sum(metric{foo="xx"}) by ()');
-      const range = value.selection.merge({
-        anchorOffset: 26,
-      });
-      const valueWithSelection = value.change().select(range).value;
+      const ed = new SlateEditor({ value });
+      const valueWithSelection = ed.moveForward(26).value;
       const result = instance.provideCompletionItems({
         text: '',
         prefix: '',
@@ -284,10 +270,8 @@ describe('Language completion provider', () => {
     it('returns label suggestions on aggregation context and metric w/o selector', () => {
       const instance = new LanguageProvider(datasource, { labelKeys: { '{__name__="metric"}': ['bar'] } });
       const value = Plain.deserialize('sum(metric) by ()');
-      const range = value.selection.merge({
-        anchorOffset: 16,
-      });
-      const valueWithSelection = value.change().select(range).value;
+      const ed = new SlateEditor({ value });
+      const valueWithSelection = ed.moveForward(16).value;
       const result = instance.provideCompletionItems({
         text: '',
         prefix: '',
@@ -303,9 +287,10 @@ describe('Language completion provider', () => {
         labelKeys: { '{__name__="metric"}': ['label1', 'label2', 'label3'] },
       });
       const value = Plain.deserialize('sum(\nmetric\n)\nby ()');
-      const aggregationTextBlock = value.document.getBlocksAsArray()[3];
-      const range = value.selection.moveToStartOf(aggregationTextBlock).merge({ anchorOffset: 4 });
-      const valueWithSelection = value.change().select(range).value;
+      const aggregationTextBlock = value.document.getBlocks().get(3);
+      const ed = new SlateEditor({ value });
+      ed.moveToStartOfNode(aggregationTextBlock);
+      const valueWithSelection = ed.moveForward(4).value;
       const result = instance.provideCompletionItems({
         text: '',
         prefix: '',
@@ -326,10 +311,8 @@ describe('Language completion provider', () => {
         labelKeys: { '{__name__="metric"}': ['label1', 'label2', 'label3'] },
       });
       const value = Plain.deserialize('sum(rate(metric[1h])) by ()');
-      const range = value.selection.merge({
-        anchorOffset: 26,
-      });
-      const valueWithSelection = value.change().select(range).value;
+      const ed = new SlateEditor({ value });
+      const valueWithSelection = ed.moveForward(26).value;
       const result = instance.provideCompletionItems({
         text: '',
         prefix: '',
@@ -350,10 +333,8 @@ describe('Language completion provider', () => {
         labelKeys: { '{__name__="metric",label1="value"}': ['label1', 'label2', 'label3'] },
       });
       const value = Plain.deserialize('sum(rate(metric{label1="value"}[1h])) by ()');
-      const range = value.selection.merge({
-        anchorOffset: 42,
-      });
-      const valueWithSelection = value.change().select(range).value;
+      const ed = new SlateEditor({ value });
+      const valueWithSelection = ed.moveForward(42).value;
       const result = instance.provideCompletionItems({
         text: '',
         prefix: '',
@@ -374,10 +355,8 @@ describe('Language completion provider', () => {
         labelKeys: { '{__name__="metric"}': ['label1', 'label2', 'label3'] },
       });
       const value = Plain.deserialize('sum by ()');
-      const range = value.selection.merge({
-        anchorOffset: 8,
-      });
-      const valueWithSelection = value.change().select(range).value;
+      const ed = new SlateEditor({ value });
+      const valueWithSelection = ed.moveForward(8).value;
       const result = instance.provideCompletionItems({
         text: '',
         prefix: '',
@@ -393,10 +372,8 @@ describe('Language completion provider', () => {
         labelKeys: { '{__name__="metric"}': ['label1', 'label2', 'label3'] },
       });
       const value = Plain.deserialize('sum by () (metric)');
-      const range = value.selection.merge({
-        anchorOffset: 8,
-      });
-      const valueWithSelection = value.change().select(range).value;
+      const ed = new SlateEditor({ value });
+      const valueWithSelection = ed.moveForward(8).value;
       const result = instance.provideCompletionItems({
         text: '',
         prefix: '',

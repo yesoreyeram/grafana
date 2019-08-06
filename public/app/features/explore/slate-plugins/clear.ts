@@ -1,22 +1,28 @@
+import { Editor as SlateEditor } from 'slate';
+import { Plugin } from 'slate-react';
+
 // Clears the rest of the line after the caret
-export default function ClearPlugin() {
+export default function ClearPlugin(): Plugin {
   return {
-    onKeyDown(event: any, change: { value?: any; deleteForward?: any }) {
-      const { value } = change;
-      if (!value.isCollapsed) {
-        return undefined;
+    onKeyDown(event: Event, editor: SlateEditor, next: Function) {
+      const value = editor.value;
+      const keyboardEvent = event as KeyboardEvent;
+
+      if (!value.selection.isCollapsed) {
+        return next();
       }
 
-      if (event.key === 'k' && event.ctrlKey) {
-        event.preventDefault();
+      if (keyboardEvent.key === 'k' && keyboardEvent.ctrlKey) {
+        keyboardEvent.preventDefault();
         const text = value.anchorText.text;
-        const offset = value.anchorOffset;
+        const offset = value.selection.anchor.offset;
         const length = text.length;
         const forward = length - offset;
-        change.deleteForward(forward);
+        editor.deleteForward(forward);
         return true;
       }
-      return undefined;
+
+      return next();
     },
   };
 }

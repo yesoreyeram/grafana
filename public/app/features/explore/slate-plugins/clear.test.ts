@@ -1,5 +1,6 @@
 // @ts-ignore
 import Plain from 'slate-plain-serializer';
+import { Editor as SlateEditor } from 'slate';
 
 import ClearPlugin from './clear';
 
@@ -7,33 +8,35 @@ describe('clear', () => {
   const handler = ClearPlugin().onKeyDown;
 
   it('does not change the empty value', () => {
-    const change = Plain.deserialize('').change();
+    const value = Plain.deserialize('');
+    const editor = new SlateEditor({ value });
     const event = new window.KeyboardEvent('keydown', {
       key: 'k',
       ctrlKey: true,
     });
-    handler(event, change);
-    expect(Plain.serialize(change.value)).toEqual('');
+    handler(event as Event, editor, () => {});
+    expect(Plain.serialize(editor.value)).toEqual('');
   });
 
   it('clears to the end of the line', () => {
-    const change = Plain.deserialize('foo').change();
+    const value = Plain.deserialize('foo');
+    const editor = new SlateEditor({ value });
     const event = new window.KeyboardEvent('keydown', {
       key: 'k',
       ctrlKey: true,
     });
-    handler(event, change);
-    expect(Plain.serialize(change.value)).toEqual('');
+    handler(event as Event, editor, () => {});
+    expect(Plain.serialize(editor.value)).toEqual('');
   });
 
   it('clears from the middle to the end of the line', () => {
-    const change = Plain.deserialize('foo bar').change();
-    change.move(4);
+    const value = Plain.deserialize('foo bar');
+    const editor = new SlateEditor({ value });
     const event = new window.KeyboardEvent('keydown', {
       key: 'k',
       ctrlKey: true,
     });
-    handler(event, change);
-    expect(Plain.serialize(change.value)).toEqual('foo ');
+    handler(event as Event, editor.moveForward(4), () => {});
+    expect(Plain.serialize(editor.value)).toEqual('foo ');
   });
 });

@@ -2,9 +2,9 @@ import _ from 'lodash';
 import React from 'react';
 // @ts-ignore
 import Cascader from 'rc-cascader';
-// @ts-ignore
-import PluginPrism from 'slate-prism';
-// @ts-ignore
+
+import PluginPrism from 'app/features/explore/slate-plugins/new_prism';
+
 import Prism from 'prismjs';
 
 import { TypeaheadOutput, HistoryItem } from 'app/types/explore';

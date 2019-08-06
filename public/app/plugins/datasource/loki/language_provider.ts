@@ -131,7 +131,7 @@ export default class LokiLanguageProvider extends LanguageProvider {
     let refresher: Promise<any> = null;
     const suggestions: CompletionItemGroup[] = [];
     const line = value.anchorBlock.getText();
-    const cursorOffset: number = value.anchorOffset;
+    const cursorOffset: number = value.selection.anchor.offset;
 
     // Use EMPTY_SELECTOR until series API is implemented for facetting
     const selector = EMPTY_SELECTOR;

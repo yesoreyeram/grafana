@@ -1,9 +1,7 @@
 import _ from 'lodash';
 import React from 'react';
-// @ts-ignore
-import PluginPrism from 'slate-prism';
-// @ts-ignore
-import Prism from 'prismjs';
+
+import PluginPrism from 'app/features/explore/slate-plugins/new_prism';
 
 // dom also includes Element polyfills
 import QueryField from 'app/features/explore/QueryField';
