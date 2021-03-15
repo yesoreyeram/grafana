@@ -84,9 +84,8 @@ require (
 	golang.org/x/net v0.0.0-20201022231255-08b38378de70
 	golang.org/x/oauth2 v0.0.0-20200902213428-5d25da1a8d43
 	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
-	golang.org/x/sys v0.0.0-20201022201747-fb209a7c41cd // indirect
 	golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e
-	gonum.org/v1/gonum v0.6.0
+	gonum.org/v1/gonum v0.9.0
 	google.golang.org/api v0.33.0
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20201022181438-0ff5f38871d5 // indirect
